@@ -1,0 +1,51 @@
+# Restaurant Storage Manager
+
+An easy-to-use inventory management system designed for small restaurant businesses.  
+This web application helps restaurant owners and employees track stock, record product ins-and-outs, and maintain accountability with detailed activity logs.
+
+---
+
+## Features
+
+### Inventory Management
+- Add and remove products with quantity control  
+- Real-time stock tracking  
+- Organize items by category and location  
+- Track expiration dates with alerts  
+- Record all product ins and outs  
+
+### Activity Log
+- Full history of all inventory changes  
+- Logs include date, time, action type, and employee  
+- Helps maintain transparency and accountability  
+- Distinguishes between manager and employee actions  
+
+### User Roles & Authentication
+- Secure login system  
+- Separate **Manager (Admin)** and **Employee** accounts  
+- Authorization for protected pages  
+- Ensures accurate user attribution for all changes  
+
+### User Experience
+- Clean and responsive design   
+- Search and filter for quick item lookup  
+
+Set-up instruction
+
+(1) FIrst of all, you will be required to clone our github repo
+username- myotz and repo name-SCEHACK
+cd-my-app
+
+(2) Install dependencies
+npm install --save-dev @types/react @types/react-dom
+
+(3)Run the development server
+npm run dev in your command window
+
+(4) open your browser preferably Chrome
+http://localhost:3000/
+
+Usage Guide
+
+The usage is relatively similar to most log in based websites. create account if we dont have it. then log in to get access. 
+there will be 2 main functions in the website. Storage and Activity log. Storage to record ins and outs of products to the store and activity log to who did the modification to it.
