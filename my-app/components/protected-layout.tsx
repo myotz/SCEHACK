@@ -22,14 +22,12 @@ export function ProtectedLayout({ children }: ProtectedLayoutProps) {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      const redirectUrl = searchParams.get("redirect") || "/login"
+      // Only redirect if we're on a protected route, not if already on auth pages
       if (pathname !== "/login" && pathname !== "/register" && pathname !== "/") {
         router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-      } else {
-        router.push("/login")
       }
     }
-  }, [user, isLoading, router, searchParams, pathname])
+  }, [user, isLoading, router, pathname])
 
   if (isLoading) {
     return (

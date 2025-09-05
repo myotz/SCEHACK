@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 
 export interface StorageItem {
   id: string
@@ -126,40 +125,53 @@ const saveToLocalStorage = <T,>(key: string, data: T): void => {
 export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<StorageItem[]>([])
   const [activities, setActivities] = useState<ActivityLog[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
-    const storedItems = loadFromLocalStorage(STORAGE_KEYS.ITEMS, [])
-    const storedActivities = loadFromLocalStorage(STORAGE_KEYS.ACTIVITIES, [])
+    const initializeData = () => {
+      const storedItems = loadFromLocalStorage(STORAGE_KEYS.ITEMS, [])
+      const storedActivities = loadFromLocalStorage(STORAGE_KEYS.ACTIVITIES, [])
 
-    // If no stored data exists, use mock data as initial data
-    if (storedItems.length === 0) {
-      setItems(mockItems)
-      saveToLocalStorage(STORAGE_KEYS.ITEMS, mockItems)
-    } else {
-      setItems(storedItems)
+      // If no stored data exists, use mock data as initial data
+      if (storedItems.length === 0) {
+        setItems(mockItems)
+        saveToLocalStorage(STORAGE_KEYS.ITEMS, mockItems)
+      } else {
+        setItems(storedItems)
+      }
+
+      if (storedActivities.length === 0) {
+        setActivities(mockActivities)
+        saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, mockActivities)
+      } else {
+        setActivities(storedActivities)
+      }
+
+      setIsInitialized(true)
     }
 
-    if (storedActivities.length === 0) {
-      setActivities(mockActivities)
-      saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, mockActivities)
-    } else {
-      setActivities(storedActivities)
-    }
+    initializeData()
   }, [])
 
   useEffect(() => {
-    if (items.length > 0) {
-      saveToLocalStorage(STORAGE_KEYS.ITEMS, items)
+    if (isInitialized && items.length > 0) {
+      const timeoutId = setTimeout(() => {
+        saveToLocalStorage(STORAGE_KEYS.ITEMS, items)
+      }, 100)
+      return () => clearTimeout(timeoutId)
     }
-  }, [items])
+  }, [items, isInitialized])
 
   useEffect(() => {
-    if (activities.length > 0) {
-      saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, activities)
+    if (isInitialized && activities.length > 0) {
+      const timeoutId = setTimeout(() => {
+        saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, activities)
+      }, 100)
+      return () => clearTimeout(timeoutId)
     }
-  }, [activities])
+  }, [activities, isInitialized])
 
-  const addItem = (newItem: Omit<StorageItem, "id" | "addedAt" | "lastUpdated">) => {
+  const addItem = useCallback((newItem: Omit<StorageItem, "id" | "addedAt" | "lastUpdated">) => {
     const item: StorageItem = {
       ...newItem,
       id: Date.now().toString(),
@@ -167,56 +179,80 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       lastUpdated: new Date().toISOString(),
     }
     setItems((prev) => [...prev, item])
-    addActivity({
+
+    const activity: ActivityLog = {
+      id: (Date.now() + 1).toString(),
       action: "added",
       itemName: item.name,
       details: `Added ${item.quantity} ${item.unit} to ${item.location}`,
       employeeName: newItem.addedBy,
-    })
-  }
+      timestamp: new Date().toISOString(),
+    }
+    setActivities((prev) => [activity, ...prev])
+  }, [])
 
-  const updateItem = (id: string, updates: Partial<StorageItem>) => {
+  const updateItem = useCallback((id: string, updates: Partial<StorageItem>) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...updates, lastUpdated: new Date().toISOString() } : item)),
     )
-    const item = items.find((i) => i.id === id)
-    if (item) {
-      addActivity({
-        action: "updated",
-        itemName: item.name,
-        details: `Updated item details`,
-        employeeName: updates.addedBy || "Unknown",
-      })
-    }
-  }
 
-  const removeItem = (id: string) => {
-    const item = items.find((i) => i.id === id)
-    setItems((prev) => prev.filter((item) => item.id !== id))
-    if (item) {
-      addActivity({
-        action: "removed",
-        itemName: item.name,
-        details: `Removed ${item.quantity} ${item.unit} from ${item.location}`,
-        employeeName: "Current User",
-      })
-    }
-  }
+    setItems((currentItems) => {
+      const item = currentItems.find((i) => i.id === id)
+      if (item) {
+        const activity: ActivityLog = {
+          id: Date.now().toString(),
+          action: "updated",
+          itemName: item.name,
+          details: `Updated item details`,
+          employeeName: updates.addedBy || "Unknown",
+          timestamp: new Date().toISOString(),
+        }
+        setActivities((prev) => [activity, ...prev])
+      }
+      return currentItems
+    })
+  }, [])
 
-  const addActivity = (newActivity: Omit<ActivityLog, "id" | "timestamp">) => {
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => {
+      const item = prev.find((i) => i.id === id)
+      if (item) {
+        const activity: ActivityLog = {
+          id: Date.now().toString(),
+          action: "removed",
+          itemName: item.name,
+          details: `Removed ${item.quantity} ${item.unit} from ${item.location}`,
+          employeeName: "Current User",
+          timestamp: new Date().toISOString(),
+        }
+        setActivities((prevActivities) => [activity, ...prevActivities])
+      }
+      return prev.filter((item) => item.id !== id)
+    })
+  }, [])
+
+  const addActivity = useCallback((newActivity: Omit<ActivityLog, "id" | "timestamp">) => {
     const activity: ActivityLog = {
       ...newActivity,
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
     }
     setActivities((prev) => [activity, ...prev])
-  }
+  }, [])
 
-  return (
-    <StorageContext.Provider value={{ items, activities, addItem, updateItem, removeItem, addActivity }}>
-      {children}
-    </StorageContext.Provider>
+  const contextValue = useMemo(
+    () => ({
+      items,
+      activities,
+      addItem,
+      updateItem,
+      removeItem,
+      addActivity,
+    }),
+    [items, activities, addItem, updateItem, removeItem, addActivity],
   )
+
+  return <StorageContext.Provider value={contextValue}>{children}</StorageContext.Provider>
 }
 
 export function useStorage() {
