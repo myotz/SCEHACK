@@ -1,0 +1,228 @@
+"use client"
+
+import type React from "react"
+
+import { createContext, useContext, useState, useEffect } from "react"
+
+export interface StorageItem {
+  id: string
+  name: string
+  category: "produce" | "meat" | "dairy" | "dry-goods" | "frozen" | "beverages"
+  quantity: number
+  unit: "lbs" | "kg" | "pieces" | "gallons" | "liters" | "boxes" | "cases"
+  location: string
+  expirationDate: string
+  addedBy: string
+  addedAt: string
+  lastUpdated: string
+}
+
+export interface ActivityLog {
+  id: string
+  action: "added" | "updated" | "removed" | "moved"
+  itemName: string
+  details: string
+  employeeName: string
+  timestamp: string
+}
+
+interface StorageContextType {
+  items: StorageItem[]
+  activities: ActivityLog[]
+  addItem: (item: Omit<StorageItem, "id" | "addedAt" | "lastUpdated">) => void
+  updateItem: (id: string, updates: Partial<StorageItem>) => void
+  removeItem: (id: string) => void
+  addActivity: (activity: Omit<ActivityLog, "id" | "timestamp">) => void
+}
+
+const StorageContext = createContext<StorageContextType | undefined>(undefined)
+
+// Mock storage data
+const mockItems: StorageItem[] = [
+  {
+    id: "1",
+    name: "Fresh Tomatoes",
+    category: "produce",
+    quantity: 25,
+    unit: "lbs",
+    location: "Walk-in Cooler A",
+    expirationDate: "2025-01-12",
+    addedBy: "Jane Employee",
+    addedAt: "2025-01-05T10:30:00Z",
+    lastUpdated: "2025-01-05T10:30:00Z",
+  },
+  {
+    id: "2",
+    name: "Ground Beef",
+    category: "meat",
+    quantity: 15,
+    unit: "lbs",
+    location: "Freezer B",
+    expirationDate: "2025-01-15",
+    addedBy: "John Manager",
+    addedAt: "2025-01-04T14:20:00Z",
+    lastUpdated: "2025-01-04T14:20:00Z",
+  },
+  {
+    id: "3",
+    name: "Whole Milk",
+    category: "dairy",
+    quantity: 8,
+    unit: "gallons",
+    location: "Walk-in Cooler A",
+    expirationDate: "2025-01-10",
+    addedBy: "Jane Employee",
+    addedAt: "2025-01-03T09:15:00Z",
+    lastUpdated: "2025-01-03T09:15:00Z",
+  },
+]
+
+const mockActivities: ActivityLog[] = [
+  {
+    id: "1",
+    action: "added",
+    itemName: "Fresh Tomatoes",
+    details: "Added 25 lbs to Walk-in Cooler A",
+    employeeName: "Jane Employee",
+    timestamp: "2025-01-05T10:30:00Z",
+  },
+  {
+    id: "2",
+    action: "updated",
+    itemName: "Ground Beef",
+    details: "Updated quantity from 20 lbs to 15 lbs",
+    employeeName: "John Manager",
+    timestamp: "2025-01-04T16:45:00Z",
+  },
+]
+
+const STORAGE_KEYS = {
+  ITEMS: "restaurant-storage-items",
+  ACTIVITIES: "restaurant-storage-activities",
+}
+
+const loadFromLocalStorage = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") return fallback
+
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : fallback
+  } catch (error) {
+    console.error(`Error loading ${key} from localStorage:`, error)
+    return fallback
+  }
+}
+
+const saveToLocalStorage = <T,>(key: string, data: T): void => {
+  if (typeof window === "undefined") return
+
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (error) {
+    console.error(`Error saving ${key} to localStorage:`, error)
+  }
+}
+
+export function StorageProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<StorageItem[]>([])
+  const [activities, setActivities] = useState<ActivityLog[]>([])
+
+  useEffect(() => {
+    const storedItems = loadFromLocalStorage(STORAGE_KEYS.ITEMS, [])
+    const storedActivities = loadFromLocalStorage(STORAGE_KEYS.ACTIVITIES, [])
+
+    // If no stored data exists, use mock data as initial data
+    if (storedItems.length === 0) {
+      setItems(mockItems)
+      saveToLocalStorage(STORAGE_KEYS.ITEMS, mockItems)
+    } else {
+      setItems(storedItems)
+    }
+
+    if (storedActivities.length === 0) {
+      setActivities(mockActivities)
+      saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, mockActivities)
+    } else {
+      setActivities(storedActivities)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (items.length > 0) {
+      saveToLocalStorage(STORAGE_KEYS.ITEMS, items)
+    }
+  }, [items])
+
+  useEffect(() => {
+    if (activities.length > 0) {
+      saveToLocalStorage(STORAGE_KEYS.ACTIVITIES, activities)
+    }
+  }, [activities])
+
+  const addItem = (newItem: Omit<StorageItem, "id" | "addedAt" | "lastUpdated">) => {
+    const item: StorageItem = {
+      ...newItem,
+      id: Date.now().toString(),
+      addedAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+    }
+    setItems((prev) => [...prev, item])
+    addActivity({
+      action: "added",
+      itemName: item.name,
+      details: `Added ${item.quantity} ${item.unit} to ${item.location}`,
+      employeeName: newItem.addedBy,
+    })
+  }
+
+  const updateItem = (id: string, updates: Partial<StorageItem>) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates, lastUpdated: new Date().toISOString() } : item)),
+    )
+    const item = items.find((i) => i.id === id)
+    if (item) {
+      addActivity({
+        action: "updated",
+        itemName: item.name,
+        details: `Updated item details`,
+        employeeName: updates.addedBy || "Unknown",
+      })
+    }
+  }
+
+  const removeItem = (id: string) => {
+    const item = items.find((i) => i.id === id)
+    setItems((prev) => prev.filter((item) => item.id !== id))
+    if (item) {
+      addActivity({
+        action: "removed",
+        itemName: item.name,
+        details: `Removed ${item.quantity} ${item.unit} from ${item.location}`,
+        employeeName: "Current User",
+      })
+    }
+  }
+
+  const addActivity = (newActivity: Omit<ActivityLog, "id" | "timestamp">) => {
+    const activity: ActivityLog = {
+      ...newActivity,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+    }
+    setActivities((prev) => [activity, ...prev])
+  }
+
+  return (
+    <StorageContext.Provider value={{ items, activities, addItem, updateItem, removeItem, addActivity }}>
+      {children}
+    </StorageContext.Provider>
+  )
+}
+
+export function useStorage() {
+  const context = useContext(StorageContext)
+  if (context === undefined) {
+    throw new Error("useStorage must be used within a StorageProvider")
+  }
+  return context
+}
